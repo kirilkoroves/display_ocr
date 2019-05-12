@@ -14,14 +14,14 @@ def take_picture(should_save=False, d_id=0):
     print "picture taken"
   return img
 
-def cnvt_edged_image(img_arr, should_save=False):
+def cnvt_edged_image(img_arr, should_save=True):
   # ratio = img_arr.shape[0] / 300.0
   image = imutils.resize(img_arr,height=300)
   gray_image = cv2.bilateralFilter(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY),11, 17, 17)
   edged_image = cv2.Canny(gray_image, 30, 200)
 
   if should_save:
-    cv2.imwrite('cntr_ocr.jpg')
+    cv2.imwrite('cntr_ocr.jpg', edged_image)
 
   return edged_image
 
@@ -34,7 +34,7 @@ def find_display_contour(edge_img_arr):
 
   for cntr in top_cntrs:
     peri = cv2.arcLength(cntr,True)
-    approx = cv2.approxPolyDP(cntr, 0.02 * peri, True)
+    approx = cv2.approxPolyDP(cntr, 0.01 * peri, True)
 
     if len(approx) == 4:
       display_contour = approx
@@ -108,8 +108,31 @@ def ocr_image(orig_image_arr,i):
   cv2.imwrite("image"+i+".jpg", img)
   otsu_thresh_image = PIL.Image.fromarray(img)
 
-for i in range(59):
-	id = i+60
-	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples2/example"+str(id)+".jpg")
+for i in range(58):
+  id = i+1
+  img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples/example"+str(id)+".jpg")
+  print id
+  ocr_image(img, str(id))
+
+for i in range(60):
+  id = i+60
+  img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples2/example"+str(id)+".jpg")
+  print id
+  ocr_image(img, str(id))
+
+for i in range(37):
+	id = i+120
+	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples3/example"+str(id)+".jpg")
 	print id
 	ocr_image(img, str(id))
+
+for i in range(47):
+  id = i+158
+  img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples4/example"+str(id)+".jpg")
+  print id
+  ocr_image(img, str(id))
+
+#id = 161
+#img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples4/example"+str(id)+".jpg")
+#print id
+#ocr_image(img, str(id))
