@@ -8,6 +8,23 @@ RESIZED_IMAGE_HEIGHT = 30
 CROP_DIR = 'crops'
 
 
+def increase_brightness(img, value=30):
+	hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	h, s, v = cv2.split(hsv)
+
+	lim = 255 - value
+	v[v > lim] = 255
+	v[v <= lim] += value
+
+	final_hsv = cv2.merge((h, s, v))
+	img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+	return img
+
+def average_brightness(img):
+	hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	(a, b, c, d) = cv2.mean(hsv[:, :, 2])
+	return a
+
 class FrameProcessor:
     def __init__(self, height, version, debug=False, write_digits=False):
         self.debug = debug
@@ -18,12 +35,14 @@ class FrameProcessor:
         self.width = 0
         self.original = None
         self.write_digits = write_digits
-
+        self.min_canny = 100
+        self.max_canny = 200
+        self.brightness = 0
         self.knn = self.train_knn(self.version)
 
-    def set_image(self, file_name):
-        self.file_name = file_name
-        self.img = cv2.imread(file_name)
+    def set_image(self, img):
+        self.img = img
+        height, width, channels = self.img.shape
         self.original, self.width = self.resize_to_height(self.height)
         self.img = self.original.copy()
 
@@ -44,46 +63,44 @@ class FrameProcessor:
         k_nearest.train(npa_flattened_images, cv2.ml.ROW_SAMPLE, npa_classifications)
         return k_nearest
 
-    def process_image(self,image, blur, threshold, adjustment, erode, iterations):
-	height = 200
-	r = image.shape[0] / float(height)
-        dim = (int(image.shape[1] / r), height)
-        img = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
-	self.img = img
-        self.original = img
-	
+    def process_image(self, blur, threshold, adjustment, erode, iterations):
+
+        self.img = self.original.copy()
+        self.img = increase_brightness(self.img, self.brightness)
         debug_images = []
-
-        alpha = float(2.5)
-
-        debug_images.append(('Original', self.original))
-
-        # Adjust the exposure
-        exposure_img = cv2.multiply(self.img, np.array([alpha]))
-        debug_images.append(('Exposure Adjust', exposure_img))
+        img2gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
 	
         # Blur to reduce noise
-        img_blurred = cv2.GaussianBlur(exposure_img, (blur, blur), 0)
-        debug_images.append(('Blurred', img_blurred))
+        img_blurred = cv2.GaussianBlur(img2gray, (blur, blur), 0)
+        #debug_images.append(('Blurred', img_blurred))
 
-        cropped = img_blurred
+        #cropped = img_blurred
 
         # Threshold the image
-        cropped_threshold = cv2.adaptiveThreshold(cropped, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,
-                                                  threshold, adjustment)
-        debug_images.append(('Cropped Threshold', cropped_threshold))
+        #cropped_threshold = cv2.adaptiveThreshold(cropped, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY,
+        #                                          threshold, adjustment)
+        #debug_images.append(('Cropped Threshold', cropped_threshold))
 
         # Erode the lcd digits to make them continuous for easier contouring
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (erode, erode))
-        eroded = cv2.erode(cropped_threshold, kernel, iterations=iterations)
+        eroded = cv2.erode(img_blurred, kernel, iterations=iterations)
         debug_images.append(('Eroded', eroded))
 	
+	#closing = cv2.morphologyEx(erode, cv2.MORPH_CLOSE, kernel)
+	#debug_images.append(('Dilate', closing))
         # Reverse the image to so the white text is found when looking for the contours
-        inverse = inverse_colors(eroded)
-        debug_images.append(('Inversed', inverse))
+        v = np.median(eroded)
+ 
+	# apply automatic Canny edge detection using the computed median
+	#sigma=0.33
+	#lower = int(max(100, (1.0 - sigma) * v))
+	#upper = int(min(200, (1.0 + sigma) * v))
+	canny = cv2.Canny(eroded, self.min_canny, self.max_canny)
+
+        debug_images.append(('Canny', canny))
 
         # Find the lcd digit contours
-        _, contours, _ = cv2.findContours(inverse, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)  # get contours
+        _, contours, _ = cv2.findContours(canny, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)  # get contours
 
         # Assuming we find some, we'll sort them in order left -> right
         if len(contours) > 0:
@@ -103,7 +120,8 @@ class FrameProcessor:
         aspect_buffer = 0.15
 
         # Loop over all the contours collecting potential digits and decimals
-        for contour in contours:
+	cv2.drawContours(self.img, contours, -1, (0,255,0), 3)        
+	for contour in contours:
             # get rectangle bounding contour
             [x, y, w, h] = cv2.boundingRect(contour)
 
@@ -125,8 +143,8 @@ class FrameProcessor:
                 continue
 
             # If the contour is of decent size and fits the aspect ratios we want, we'll save it
-            if ((size > 2000 and aspect >= desired_aspect - aspect_buffer and aspect <= desired_aspect + aspect_buffer) or
-                (size > 1000 and aspect >= digit_one_aspect - aspect_buffer and aspect <= digit_one_aspect + aspect_buffer)):
+            if ((size < 40000 and size > 12000 and aspect >= desired_aspect - aspect_buffer and aspect <= desired_aspect + aspect_buffer) or
+                (size > 5000 and aspect >= digit_one_aspect - aspect_buffer and aspect <= digit_one_aspect + aspect_buffer)):
                 # Keep track of the height and y position so we can run averages later
                 total_digit_height += h
                 total_digit_y += y
@@ -208,20 +226,7 @@ class FrameProcessor:
                 output = output[:ix] + '.' + output[ix:]
                 break
 
-        # Debugging to show the left/right digit x positions
-        if self.debug:
-            cv2.rectangle(self.img, (left_most_digit, int(avg_digit_y)),
-                          (left_most_digit + right_most_digit - left_most_digit,
-                           int(avg_digit_y) + int(avg_digit_height)),
-                          (66, 244, 212), 2)
-
-        # Log some information
-        if self.debug:
-            print("Potential Digits " + str(len(potential_digits)))
-            print("Potential Decimals " + str(len(potential_decimals)))
-            print("String: " + output)
-
-        return debug_images, output
+        return output
 
     # Predict the digit from an image using KNN
     def predict_digit(self, digit_mat):
@@ -231,8 +236,9 @@ class FrameProcessor:
         npaROIResized = imgROIResized.reshape((1, RESIZED_IMAGE_WIDTH * RESIZED_IMAGE_HEIGHT))
         # Convert it to floats
         npaROIResized = np.float32(npaROIResized)
-        _, results, neigh_resp, dists = self.knn.findNearest(npaROIResized, k=1)
-        predicted_digit = str(chr(int(results[0][0])))
+        _, results, neigh_resp, dists = self.knn.findNearest(npaROIResized, k=3)
+	predicted_digit = str(chr(int(results[0][0])))
         if predicted_digit == 'A':
             predicted_digit = '.'
         return predicted_digit
+
