@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 import os
-from ImageProcessing.OpenCVUtils import inverse_colors, sort_contours
+from OpenCVUtils import inverse_colors, sort_contours
+from warp.runtime import config
 
 RESIZED_IMAGE_WIDTH = 20
 RESIZED_IMAGE_HEIGHT = 30
@@ -34,7 +35,7 @@ class FrameProcessor:
         self.img = None
         self.width = 0
         self.original = None
-        self.write_digits = write_digits
+        self.write_digits = False
         self.min_canny = 100
         self.max_canny = 200
         self.brightness = 0
@@ -45,6 +46,9 @@ class FrameProcessor:
         height, width, channels = self.img.shape
         self.original, self.width = self.resize_to_height(self.height)
         self.img = self.original.copy()
+
+    def set_file_name(self, file_name):
+        self.file_name = file_name
 
     def resize_to_height(self, height):
         r = self.img.shape[0] / float(height)
@@ -129,7 +133,7 @@ class FrameProcessor:
             size = w * h
 
             # It's a square, save the contour as a potential digit
-            if size > 100 and aspect >= 1 - .3 and aspect <= 1 + .3:
+            if size > 500 and aspect >= 1 - .3 and aspect <= 1 + .3:
                 potential_decimals.append(contour)
 
             # If it's small and it's not a square, kick it out
@@ -190,9 +194,7 @@ class FrameProcessor:
 
                 # Helper code to write out the digit image file for use in KNN training
                 if self.write_digits:
-                    _, full_file = os.path.split(self.file_name)
-                    file_name = full_file.split('.')
-                    crop_file_path = CROP_DIR + '/' + digit + '_' + file_name[0] + '_crop_' + str(ix) + '.png'
+                    crop_file_path = CROP_DIR + '/' + digit + '_' + self.file_name + '_crop_' + str(ix) + '.png'
                     cv2.imwrite(crop_file_path, cropped)
 
                 # Track the x positions of where the digits are
@@ -241,4 +243,5 @@ class FrameProcessor:
         if predicted_digit == 'A':
             predicted_digit = '.'
         return predicted_digit
+
 

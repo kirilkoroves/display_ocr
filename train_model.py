@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 # Current version of training
-version = '_2_2'
+version = '_2_3'
 
 RESIZED_IMAGE_WIDTH = 20
 RESIZED_IMAGE_HEIGHT = 30

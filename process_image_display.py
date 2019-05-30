@@ -1,23 +1,33 @@
 import numpy as np
 import cv2
 import imutils
-from skimage import exposure
-from pytesseract import image_to_string
-import PIL
 from ImageProcessing import FrameProcessor, ProcessingVariables
 from DisplayUtils.TileDisplay import show_img, reset_tiles
+import os
 
 std_height = 400
-version = "_2_2"
+
+# thresh = 73  # 1-50 mod 2 25
+# erode = 3  # 3-4 2
+# adjust = 15  # 10-40 30
+# blur = 9  # 5-15 mod 2 7
+
+erode = 4
 threshold = ProcessingVariables.threshold
 adjustment = ProcessingVariables.adjustment
 iterations = ProcessingVariables.iterations
+blur = 7
+
+version = '_2_3'
+test_folder = ''
+
+frameProcessor = FrameProcessor(std_height, version, False, write_digits=True)
 
 def read_image(img):
     break_fully = False
     output = ''
     debug_images = []
-    frameProcessor = FrameProcessor(std_height, version, True)
+    #frameProcessor = FrameProcessor(std_height, version, False)
     frameProcessor.set_image(img)
     for blur in [1,3,5,7,9]:
 		if break_fully:
@@ -134,6 +144,7 @@ def ocr_image(orig_image_arr,i):
 					img = orig_image_arr
 		
 		kernel = np.ones((3, 3), np.uint8)
+		cv2.imwrite(str(i)+".jpg", img)
 		img2 = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
 		height, width, channels = img2.shape
 		reduce_height = height*15/100
@@ -141,22 +152,33 @@ def ocr_image(orig_image_arr,i):
 		img = img2[reduce_height:height-reduce_height, reduce_width:width]
 		img = cv2.resize(img,None,fx=0.7,fy=0.7)
 		output = read_image(img)
-		if output != '' and ((len(output) == 2 and '.' not in output) or (len(output) == 3 and '.' in output) ) and (check_instance(output, float) or check_instance(output, int)):
+		if output != '' and ((len(output) == 2 and '.' not in output) or (len(output) == 3 and '.' in output) or (len(output) == 4 and '.' in output) ) and (check_instance(output, float) or check_instance(output, int)):
 			if '.' not in output and len(output) == 2 and check_instance(output, int):
 				output = int(output) * 1.0 / 10
 			elif len(output) == 3 and output[0] == '.' and check_instance(output, float):
 				output = float(output) * 100 * 1.0 / 10
+			elif len(output) == 4 and output[0] == '.' and check_instance(output, float):
+				output = float(output) * 1000 * 1.0 / 10
 			break
 
 	return output
 							
 
+id=0
+correct=0
+incorrect=0
+for f in os.listdir("/home/kiril/Downloads/SDB Device Output Images/Fluorescent Indoor/"):
+	id = id+1
+	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/Fluorescent Indoor/"+f)
+	if str(f.replace("_",".").replace("*","").replace(".JPG", "")) == str(ocr_image(img, str(id))):
+              correct = correct+1
+	else:
+	      print f
+	      print  ocr_image(img, str(id))
+	      incorrect = incorrect +1
 
-for i in range(5):
-	id = i+1
-	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples/example"+str(id)+".jpg")
-	print id
-	print ocr_image(img, str(id))
+accuracy = correct*1.0/id
+print "Accuracy:"+str(accuracy)
 
 #for i in range(60):
 #  id = i+60
