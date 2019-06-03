@@ -4,6 +4,7 @@ import imutils
 from ImageProcessing import FrameProcessor, ProcessingVariables
 from DisplayUtils.TileDisplay import show_img, reset_tiles
 import os
+import random
 
 std_height = 400
 
@@ -18,10 +19,10 @@ adjustment = ProcessingVariables.adjustment
 iterations = ProcessingVariables.iterations
 blur = 7
 
-version = '_2_3'
+version = '_2_5'
 test_folder = ''
 
-frameProcessor = FrameProcessor(std_height, version, False, write_digits=True)
+frameProcessor = FrameProcessor(std_height, version, False, write_digits=False)
 
 def read_image(img):
     break_fully = False
@@ -29,6 +30,7 @@ def read_image(img):
     debug_images = []
     #frameProcessor = FrameProcessor(std_height, version, False)
     frameProcessor.set_image(img)
+    frameProcessor.set_file_name(str(int(random.random()*10000)))
     for blur in [1,3,5,7,9]:
 		if break_fully:
 			break
@@ -144,14 +146,10 @@ def ocr_image(orig_image_arr,i):
 					img = orig_image_arr
 		
 		kernel = np.ones((3, 3), np.uint8)
-		cv2.imwrite(str(i)+".jpg", img)
+		#cv2.imwrite(str(i)+".jpg", img)
 		img2 = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
-		height, width, channels = img2.shape
-		reduce_height = height*15/100
-		reduce_width = width*50/100
-		img = img2[reduce_height:height-reduce_height, reduce_width:width]
-		img = cv2.resize(img,None,fx=0.7,fy=0.7)
-		output = read_image(img)
+		#height, width, channels = img2.shape
+		output = read_image(img2)
 		if output != '' and ((len(output) == 2 and '.' not in output) or (len(output) == 3 and '.' in output) or (len(output) == 4 and '.' in output) ) and (check_instance(output, float) or check_instance(output, int)):
 			if '.' not in output and len(output) == 2 and check_instance(output, int):
 				output = int(output) * 1.0 / 10
@@ -167,11 +165,12 @@ def ocr_image(orig_image_arr,i):
 id=0
 correct=0
 incorrect=0
-for f in os.listdir("/home/kiril/Downloads/SDB Device Output Images/Fluorescent Indoor/"):
+for f in os.listdir("/home/kiril/Downloads/SDB Device Output Images (2)/Natural Light/"):
 	id = id+1
-	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/Fluorescent Indoor/"+f)
-	if str(f.replace("_",".").replace("*","").replace(".JPG", "")) == str(ocr_image(img, str(id))):
+	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images (2)/Natural Light/"+f)
+	if str(f.replace("_",".").replace("*","").replace(".JPG", "").replace(".jpg", "")) == str(ocr_image(img, str(id))):
               correct = correct+1
+	      print correct
 	else:
 	      print f
 	      print  ocr_image(img, str(id))

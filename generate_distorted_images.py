@@ -60,10 +60,10 @@ def process_directory(folder):
 
 
 def main():
-    for img_file in ['training/9/9_13.jpg', 'training/9/9_14.jpg']:
-	show_distorted(img_file, False, True)
+    #for img_file in ['training/9/9_13.jpg', 'training/9/9_14.jpg']:
+    #	show_distorted(img_file, False, True)
     # For use if you want to generate extra images for all files in a directory
-    # process_directory('training/8/')
+    process_directory('crops/')
 
 
 if __name__ == "__main__":

@@ -10,34 +10,34 @@ CROP_DIR = 'crops'
 
 
 def increase_brightness(img, value=30):
-	hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-	h, s, v = cv2.split(hsv)
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    h, s, v = cv2.split(hsv)
 
-	lim = 255 - value
-	v[v > lim] = 255
-	v[v <= lim] += value
+    lim = 255 - value
+    v[v > lim] = 255
+    v[v <= lim] += value
 
-	final_hsv = cv2.merge((h, s, v))
-	img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
-	return img
+    final_hsv = cv2.merge((h, s, v))
+    img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+    return img
 
 def average_brightness(img):
-	hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-	(a, b, c, d) = cv2.mean(hsv[:, :, 2])
-	return a
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    (a, b, c, d) = cv2.mean(hsv[:, :, 2])
+    return a
 
 class FrameProcessor:
-    def __init__(self, height, version, debug=False, write_digits=False):
-        self.debug = debug
+    def __init__(self, height, version, debug=True, write_digits=False):
+        self.debug = False
         self.version = version
         self.height = height
         self.file_name = None
         self.img = None
         self.width = 0
         self.original = None
-        self.write_digits = False
-        self.min_canny = 100
-        self.max_canny = 200
+        self.write_digits = True
+        self.min_canny = 90
+        self.max_canny = 110
         self.brightness = 0
         self.knn = self.train_knn(self.version)
 
@@ -49,6 +49,10 @@ class FrameProcessor:
 
     def set_file_name(self, file_name):
         self.file_name = file_name
+        height, width, channels = self.img.shape
+        self.original, self.width = self.resize_to_height(self.height)
+        self.img = self.original.copy()
+
 
     def resize_to_height(self, height):
         r = self.img.shape[0] / float(height)
@@ -73,7 +77,7 @@ class FrameProcessor:
         self.img = increase_brightness(self.img, self.brightness)
         debug_images = []
         img2gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
-	
+    
         # Blur to reduce noise
         img_blurred = cv2.GaussianBlur(img2gray, (blur, blur), 0)
         #debug_images.append(('Blurred', img_blurred))
@@ -89,17 +93,17 @@ class FrameProcessor:
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (erode, erode))
         eroded = cv2.erode(img_blurred, kernel, iterations=iterations)
         debug_images.append(('Eroded', eroded))
-	
-	#closing = cv2.morphologyEx(erode, cv2.MORPH_CLOSE, kernel)
-	#debug_images.append(('Dilate', closing))
+    
+        #closing = cv2.morphologyEx(erode, cv2.MORPH_CLOSE, kernel)
+        #debug_images.append(('Dilate', closing))
         # Reverse the image to so the white text is found when looking for the contours
         v = np.median(eroded)
  
-	# apply automatic Canny edge detection using the computed median
-	#sigma=0.33
-	#lower = int(max(100, (1.0 - sigma) * v))
-	#upper = int(min(200, (1.0 + sigma) * v))
-	canny = cv2.Canny(eroded, self.min_canny, self.max_canny)
+        # apply automatic Canny edge detection using the computed median
+        #sigma=0.33
+        #lower = int(max(100, (1.0 - sigma) * v))
+        #upper = int(min(200, (1.0 + sigma) * v))
+        canny = cv2.Canny(eroded, self.min_canny, self.max_canny)
 
         debug_images.append(('Canny', canny))
 
@@ -119,13 +123,13 @@ class FrameProcessor:
         # Aspect ratio for all non 1 character digits
         desired_aspect = 0.6
         # Aspect ratio for the "1" digit
-        digit_one_aspect = 0.3
+        digit_one_aspect = 0.35
         # The allowed buffer in the aspect when determining digits
         aspect_buffer = 0.15
 
         # Loop over all the contours collecting potential digits and decimals
-	cv2.drawContours(self.img, contours, -1, (0,255,0), 3)        
-	for contour in contours:
+        cv2.drawContours(self.img, contours, -1, (0,255,0), 3)        
+        for contour in contours:
             # get rectangle bounding contour
             [x, y, w, h] = cv2.boundingRect(contour)
 
@@ -133,7 +137,7 @@ class FrameProcessor:
             size = w * h
 
             # It's a square, save the contour as a potential digit
-            if size > 500 and aspect >= 1 - .3 and aspect <= 1 + .3:
+            if size > 100 and aspect >= 1 - .3 and aspect <= 1 + .3:
                 potential_decimals.append(contour)
 
             # If it's small and it's not a square, kick it out
@@ -147,8 +151,8 @@ class FrameProcessor:
                 continue
 
             # If the contour is of decent size and fits the aspect ratios we want, we'll save it
-            if ((size < 40000 and size > 12000 and aspect >= desired_aspect - aspect_buffer and aspect <= desired_aspect + aspect_buffer) or
-                (size > 5000 and aspect >= digit_one_aspect - aspect_buffer and aspect <= digit_one_aspect + aspect_buffer)):
+            if ((size < 40000 and size > 6000 and aspect >= desired_aspect - aspect_buffer and aspect <= desired_aspect + aspect_buffer) or
+                (size > 2500 and aspect >= digit_one_aspect - aspect_buffer and aspect <= digit_one_aspect + aspect_buffer)):
                 # Keep track of the height and y position so we can run averages later
                 total_digit_height += h
                 total_digit_y += y
@@ -163,21 +167,22 @@ class FrameProcessor:
         left_most_digit = 0
         right_most_digit = 0
         digit_x_positions = []
-
         # Calculate the average digit height and y position so we can determine what we can throw out
         if potential_digits_count > 0:
             avg_digit_height = float(total_digit_height) / potential_digits_count
             avg_digit_y = float(total_digit_y) / potential_digits_count
-            if self.debug:
-                print("Average Digit Height and Y: " + str(avg_digit_height) + " and " + str(avg_digit_y))
+            #if self.debug:
+            #    print("Average Digit Height and Y: " + str(avg_digit_height) + " and " + str(avg_digit_y))
 
         output = ''
         ix = 0
-
         # Loop over all the potential digits and see if they are candidates to run through KNN to get the digit
-        for pot_digit in potential_digits:
+        #print(len(potential_digits))
+        for id in range(0,len(potential_digits)):
+            pot_digit = potential_digits[id]
+            id=id+1
             [x, y, w, h] = cv2.boundingRect(pot_digit)
-
+            #print("VALUES: "+str(x)+", "+str(y)+", "+str(w)+", "+str(h))
             # Does this contour match the averages
             if h <= avg_digit_height * 1.2 and h >= avg_digit_height * 0.2 and y <= avg_digit_height * 1.2 and y >= avg_digit_y * 0.2:
                 # Crop the contour off the eroded image
@@ -194,7 +199,7 @@ class FrameProcessor:
 
                 # Helper code to write out the digit image file for use in KNN training
                 if self.write_digits:
-                    crop_file_path = CROP_DIR + '/' + digit + '_' + self.file_name + '_crop_' + str(ix) + '.png'
+                    crop_file_path = CROP_DIR + '/' + digit + '_normal_' + self.file_name + '_crop_' + str(ix) + '.png'
                     cv2.imwrite(crop_file_path, cropped)
 
                 # Track the x positions of where the digits are
@@ -239,9 +244,8 @@ class FrameProcessor:
         # Convert it to floats
         npaROIResized = np.float32(npaROIResized)
         _, results, neigh_resp, dists = self.knn.findNearest(npaROIResized, k=3)
-	predicted_digit = str(chr(int(results[0][0])))
+        predicted_digit = str(chr(int(results[0][0])))
         if predicted_digit == 'A':
             predicted_digit = '.'
         return predicted_digit
-
 
