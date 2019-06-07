@@ -1,2 +1,3 @@
 from .FrameProcessor import FrameProcessor
+from .FrameProcessorSmall import FrameProcessorSmall
 from .ProcessingVariables import ProcessingVariables

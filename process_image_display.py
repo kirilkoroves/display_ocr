@@ -19,7 +19,7 @@ adjustment = ProcessingVariables.adjustment
 iterations = ProcessingVariables.iterations
 blur = 7
 
-version = '_2_5'
+version = '_2_6'
 test_folder = ''
 
 frameProcessor = FrameProcessor(std_height, version, False, write_digits=False)
@@ -133,6 +133,9 @@ def process_image(orig_image_arr, val):
 
 def ocr_image(orig_image_arr,i):
 	output = ''
+	h,w,channels = orig_image_arr.shape
+	if w>h:
+		orig_image_arr=cv2.rotate(orig_image_arr, cv2.ROTATE_90_CLOCKWISE)
 	for val in [17,37,57]:
 		try:
 			img = process_image(orig_image_arr, val)
@@ -146,7 +149,7 @@ def ocr_image(orig_image_arr,i):
 					img = orig_image_arr
 		
 		kernel = np.ones((3, 3), np.uint8)
-		#cv2.imwrite(str(i)+".jpg", img)
+		cv2.imwrite(str(i)+".jpg", img)
 		img2 = cv2.morphologyEx(img, cv2.MORPH_CLOSE, kernel)
 		#height, width, channels = img2.shape
 		output = read_image(img2)
@@ -165,19 +168,41 @@ def ocr_image(orig_image_arr,i):
 id=0
 correct=0
 incorrect=0
-for f in os.listdir("/home/kiril/Downloads/SDB Device Output Images (2)/Natural Light/"):
-	id = id+1
-	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images (2)/Natural Light/"+f)
-	if str(f.replace("_",".").replace("*","").replace(".JPG", "").replace(".jpg", "")) == str(ocr_image(img, str(id))):
-              correct = correct+1
-	      print correct
-	else:
-	      print f
-	      print  ocr_image(img, str(id))
-	      incorrect = incorrect +1
+#for f in os.listdir("/home/kiril/Downloads/SDB Device Output Images (2)/Camera with Flash Iphone 8/"):
+#	id = id+1
+#	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images (2)/Camera with Flash Iphone 8/"+f)
+#	if str(f.replace("_",".").replace("*","").replace(".JPG", "").replace(".jpg", "")) == str(ocr_image(img, str(id))):
+#              correct = correct+1
+#	      print correct
+#	else:
+#	      print f
+#	      print  ocr_image(img, str(id))
+#	      incorrect = incorrect +1
 
-accuracy = correct*1.0/id
-print "Accuracy:"+str(accuracy)
+#for f in os.listdir("/home/kiril/Downloads/SDB Device Output Images (2)/Fluorescent Indoor/"):
+#	id = id+1
+#	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images (2)/Fluorescent Indoor/"+f)
+#	if str(f.replace("_",".").replace("*","").replace(".JPG", "").replace(".jpg", "")) == str(ocr_image(img, str(id))):
+#              correct = correct+1
+#	      print correct
+#	else:
+#	      print f
+#	      print  ocr_image(img, str(id))
+#	      incorrect = incorrect +1
+
+#for f in os.listdir("/home/kiril/Downloads/SDB Device Output Images (2)/Natural Light/"):
+#	id = id+1
+#	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images (2)/Natural Light/"+f)
+#	if str(f.replace("_",".").replace("*","").replace(".JPG", "").replace(".jpg", "")) == str(ocr_image(img, str(id))):
+#              correct = correct+1
+#	      print correct
+#	else:
+#	      print f
+#	      print  ocr_image(img, str(id))
+#	      incorrect = incorrect +1
+
+#accuracy = correct*1.0/id
+#print "Accuracy:"+str(accuracy)
 
 #for i in range(60):
 #  id = i+60
@@ -196,5 +221,7 @@ print "Accuracy:"+str(accuracy)
 #	img = cv2.imread("/home/kiril/Downloads/SDB Device Output Images/all_examples4/example"+str(id)+".jpg")
 #	print id
 #	print ocr_image(img, str(id))
+
+
 
 
